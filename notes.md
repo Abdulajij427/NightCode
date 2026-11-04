@@ -12,3 +12,78 @@
 ### Step 2: Component Architecture
 1. App()
 2. Header => (ASCII "Night code") + InputBar =>({textarea} + {StatusBar} + {CommandMenu (opens on "/)  (/new) ,(/models) , (/theme) , (/agents), (/sessions), (/exit) .. Arrow keys + Enter to select})
+
+
+
+
+
+## chapter 2: UI Infrastructure
+
+### step - 1 : Toast Notifications
+
+ToastProvider => Toast
+
+React Context wraps the app
+
+success error  info
+
+commands call ctx.toast.show() Auto-dismiss after 3 seconds
+
+
+
+### step 2: Dialog and Keyboard layers
+
+KeyboardLayerProvider
+
+Layer Stack (top wins)
+1. dialog
+2. command menu
+3. base (textarea)
+
+
+### step 3: Theme System
+
+1. ThemeProvider
+2. 33 color presets
+3. ~/.nightcode/prefs
+
+Live preview on highlight
+Reverton dismiss, persist on confirm
+Every component read useTheme()
+
+
+Provider Nesting Order (index.tsx)
+1. ThemeProvider
+2. KeyboardLayerProvider
+3. DialogProvider
+4. ToastProvider
+5. ThemeRoot
+
+
+
+## chapter 3: Routing and Screen Layout
+
+### step 1: Routing and screens
+
+1. index.tsx (createMemoryRouter)
+2. RootLayout (provides + <Outlet/>)
+3. 1. home   2. NewSession 3. Session
+
+
+
+### step 2: Session Screen UI
+
+1. SessionShell
+
+11. scrollbox (stickyScroll)
+1. UserMessage
+2. BotMessage + model tag
+3. ErrorMessage
+
+22. InputBar (disabled while loading)
+
+33. 1. Spinner
+    2. tab agents
+
+
+    
