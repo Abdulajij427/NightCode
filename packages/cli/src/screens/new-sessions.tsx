@@ -19,7 +19,7 @@ export function NewSession(){
     if(!state?.message) return null;
 
     return(
-        <SessionShell onSubmit={() => {}} inputDisabled loading>
+        <SessionShell onSubmit={() => {}} >
             <UserMessage message={state.message}/>
             <BotMessage
                 content="This is a sample bot response to demonstrate the message layout"
