@@ -1,0 +1,17 @@
+{
+    "name": "@nightcode/server",
+    "type": "module",
+    "private":true,
+    "exports":{
+        ".":"./src/index.ts"
+    },
+    "scripts":{
+
+        "dev": "bun run --hot src/index.ts"
+    },
+    "dependencies":{
+        "@nightcode/shared": "workspace:*",
+        "@nightcode/database":"workspace:*"
+    }
+}
+

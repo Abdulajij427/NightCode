@@ -86,4 +86,36 @@ Provider Nesting Order (index.tsx)
     2. tab agents
 
 
-    
+
+
+## chapter 4: Server , Shared packages and Database
+
+### Monorepo Packages
+1. @nightcode/cli (TUI + api client)
+2. @nightcode/server (Hono REST API)
+3. @nightcode/shared (models , Zod schemas)
+4. @nightode/database (Prisma client)
+
+
+#### step 1 Server and API Client
+1. Hono server : 3000
+
+
+2. Session Routes
+11. GET/sessions
+12. GET/session/:id
+13. POST/sessions + zod validation
+
+
+3. CLI api client (hc<AppType>)
+
+
+
+#### step 2 Database (Prisma and Neon)
+1. Prisma + pg adapter -> Postgres
+2. Schema
+21. Session -> Message
+22. Role , Mode , MessageStatus
+
+
+
