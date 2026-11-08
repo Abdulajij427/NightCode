@@ -119,3 +119,26 @@ Provider Nesting Order (index.tsx)
 
 
 
+## Sentry Monitoring
+
+### Its 3am . Porduction is broken . Now what ?
+
+#### WIHTOUT Sentry
+
+User -> Express server -> 500 error 
+
+
+
+#### WITH Sentry
+User -> Server -> Sentry
+
+1. Issue: 'My first Sentry error' + full stack trace
+2. Trace: POST/ sessions 487ms status 500
+3. Logs: filterable by method , path , status , duration
+4. Frequency : 47 events , 12 users affected
+
+
+
+How it works
+
+Request -> sentry() -> request timer -> your route handler -> app.onError() -> Response

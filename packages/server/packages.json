@@ -7,7 +7,8 @@
     },
     "scripts":{
 
-        "dev": "bun run --hot src/index.ts"
+        "dev": "bun run --hot --preload ./src/instrument.ts src/index.ts",
+        "start": "bun run --preload ./src/instrument.ts src/index.ts"
     },
     "dependencies":{
         "@nightcode/shared": "workspace:*",
