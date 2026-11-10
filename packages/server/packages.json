@@ -8,7 +8,8 @@
     "scripts":{
 
         "dev": "bun run --hot --preload ./src/instrument.ts src/index.ts",
-        "start": "bun run --preload ./src/instrument.ts src/index.ts"
+        "start": "bun run --preload ./src/instrument.ts src/index.ts",
+        "postinstall":"bun run --cwd ../database db:generate"
     },
     "dependencies":{
         "@nightcode/shared": "workspace:*",

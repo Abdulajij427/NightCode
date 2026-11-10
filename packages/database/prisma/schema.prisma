@@ -49,17 +49,17 @@ model Session {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  role      String
+  id        String        @id @default(cuid())
+  role      Role
   content   String
-  mode      String
+  mode      Mode
   model     String
   parts     Json?
   duration  Int?
-  status    String
-  createdAt DateTime @default(now())
+  status    MessageStatus
+  createdAt DateTime      @default(now())
   sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
 }

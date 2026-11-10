@@ -3,8 +3,7 @@ export type ModelPricing = {
     outputUsdPerMillionTokens: number;
 };
 
-
-export type SupportedProvider = "anthropic" | "openai";
+export type SupportedProvider = "google" | "groq" | "ollama";
 
 type SupportedChatModelDefinition = {
     id: string;
@@ -13,65 +12,54 @@ type SupportedChatModelDefinition = {
 };
 
 export const SUPPORTED_CHAT_MODELS = [
+    
     {
-        id: "claude-sonnet-4-6",
-        provider: "anthropic",
-        pricing: {
-            inputUsdPerMillionTokens: 3,
-            outputUsdPerMillionTokens: 15,
-        },
+    id: "gemini-3.5-flash-lite",
+    provider: "google",
+    pricing: {
+        inputUsdPerMillionTokens: 0,
+        outputUsdPerMillionTokens: 0,
     },
-    {
-        id: "claude-haiku-4-5",
-        provider: "anthropic",
-        pricing: {
-            inputUsdPerMillionTokens: 5,
-            outputUsdPerMillionTokens: 25,
-        },
     },
-    {
-        id: "claude-opus-4-6",
-        provider: "anthropic",
-        pricing: {
-            inputUsdPerMillionTokens: 5,
-            outputUsdPerMillionTokens: 25,
-        },
-    },
-    {
-        id: "gpt-5-4",
-        provider: "openai",
-        pricing: {
-            inputUsdPerMillionTokens: 2.5,
-            outputUsdPerMillionTokens: 15,
-        },
-    },
-    {
-        id: "gpt-5.4-mini",
-        provider: "openai",
-        pricing: {
-            inputUsdPerMillionTokens: 0.75,
-            outputUsdPerMillionTokens: 4.5,
-        },
-    },
-    {
-        id: "gpt-5.4-nano",
-        provider: "openai",
-        pricing: {
-            inputUsdPerMillionTokens: 1.2,
-            outputUsdPerMillionTokens: 2.1,
-        },
-    },
-] as const satisfies readonly  SupportedChatModelDefinition[];
 
+    {
+        // Best cloud default: fast normal chatbot model.
+        id: "gemini-3.8-flash",
+        provider: "google",
+        pricing: {
+            inputUsdPerMillionTokens: 0,
+            outputUsdPerMillionTokens: 0,
+        },
+    },
+    {
+        // Groq cloud model. Free account quota ke andar chalega.
+        id: "openai/gpt-oss-20b",
+        provider: "groq",
+        pricing: {
+            inputUsdPerMillionTokens: 0,
+            outputUsdPerMillionTokens: 0,
+        },
+    },
+    {
+        // Completely local Llama model through Ollama.
+        // Pehle `ollama pull llama3.2` chalana hoga.
+        id: "llama3.2",
+        provider: "ollama",
+        pricing: {
+            inputUsdPerMillionTokens: 0,
+            outputUsdPerMillionTokens: 0,
+        },
+    },
+] as const satisfies readonly SupportedChatModelDefinition[];
 
-export type SupportedChatModel = (typeof SUPPORTED_CHAT_MODELS) [number];
+export type SupportedChatModel = (typeof SUPPORTED_CHAT_MODELS)[number];
 export type SupportedChatModelId = SupportedChatModel["id"];
 
-export function findSupportedChatModel(modelId: string){
-    return SUPPORTED_CHAT_MODELS.find((model)=> model.id === modelId);
+export function findSupportedChatModel(modelId: string) {
+    return SUPPORTED_CHAT_MODELS.find((model) => model.id === modelId);
 }
 
-export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = 
-"claude-opus-4-6";
+// Aapka CLI abhi model-picker nahi dikhata, isliye ye default model use hoga.
+export const DEFAULT_CHAT_MODEL_ID: SupportedChatModelId = "gemini-3.5-flash-lite";
 
 

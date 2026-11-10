@@ -142,3 +142,44 @@ User -> Server -> Sentry
 How it works
 
 Request -> sentry() -> request timer -> your route handler -> app.onError() -> Response
+
+
+
+
+## chapter 5 :  SSE streaming , useChat hook and interruption
+
+
+### step 1 : Server-Side Streaming
+
+
+1. 
+CLI client -> chat/:sessionId  -> Vercel AI SDK -> persist to DB
+
+
+
+
+2. Stream Events (ChatStreamEvent)
+text-delta -> reasoning-delta -> tool-call -> tool-result -> done -> error
+
+
+#### step 1 (cont): useChat Hook
+
+useChat(SessionId , initialMsgs)
+
+returns
+messages[]   , streaming state , submit() , abort() , interrupt()
+
+
+
+#### step 2: Stream Interruption
+
+Press Escape -> Client: capture
+             -> Server: persist
+
+
+Interrupted Message Visual
+Dimmed dot + dimmed mode label
+"interrupted " replace duration
+partial content preserved in UI
+
+

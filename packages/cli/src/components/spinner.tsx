@@ -1,8 +1,19 @@
-import "opentui-spinner/react";
-import {useTheme} from '../providers/theme';
+import { useEffect, useState } from "react";
+import { useTheme } from "../providers/theme";
 
-export function Spinner(){
-    const {colors} = useTheme();
+const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-    return <spinner name="aesthetic" color={colors.primary} />;
+export function Spinner() {
+    const { colors } = useTheme();
+    const [frameIndex, setFrameIndex] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setFrameIndex((current) => (current + 1) % FRAMES.length);
+        }, 80);
+
+        return () => clearInterval(timer);
+    }, []);
+
+    return <text fg={colors.primary}>{FRAMES[frameIndex]}</text>;
 }

@@ -4,17 +4,14 @@ type ErrorResponse = {
     statusText: string;
 };
 
-export async function getErrorMessage(response: ErrorResponse){
-    try{
-        const data = (await response.json()) as {error?: string};
-        if(typeof data.error === "string" && data.error.length > 0){
-            return data.error;
+export async function getErrorMessage(response: ErrorResponse) {
+    try {
+        const data = (await response.json()) as { error?: string; message?: string };
+        const text = data.error ?? data.message;
+        if (typeof text === "string" && text.length > 0) {
+            return text;
         }
-    }catch{
-
-    }
+    } catch {}
 
     return response.statusText || `Request failed with status ${response.status}`;
-
-    
 }

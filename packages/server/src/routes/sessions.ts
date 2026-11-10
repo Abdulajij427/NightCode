@@ -27,7 +27,7 @@ export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
 
 
-const createSessionValidator = (
+export const createSessionValidator = (
     req: Request,
     res: Response,
     next: NextFunction,

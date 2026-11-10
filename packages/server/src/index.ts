@@ -2,12 +2,13 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/bun";
 import sessionsRouter from "./routes/sessions";
+import chatRouter from "./routes/chat"
 
 const app = express();
 app.use(express.json());
 
 app.use("/sessions", sessionsRouter);
-
+app.use("/chat" , chatRouter)
 
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

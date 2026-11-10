@@ -1,5 +1,5 @@
 {
-  "name": "noghtcode",
+  "name": "nightcode",
   "version": "1.0.0",
   "workspaces": ["packages/*"],
   "module": "index.ts",
@@ -8,7 +8,7 @@
   "scripts": {
     "typecheck": "bun check",
     "dev:cli": "bun run --watch packages/cli/src/index.tsx",
-    "dev:server": "bun run --watch --preload ./packages/server/src/instrument.ts packages/server/src/index.ts"
+    "dev:server": "bun --watch --preload ./packages/server/src/instrument.ts ./dev-server.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -18,7 +18,11 @@
     "typescript": "^7"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.99",
+    "@ai-sdk/google": "^4.0.114",
+    "@ai-sdk/openai": "^4.0.111",
     "@sentry/bun": "^11.11.0",
+    "ai": "^7.0.165",
     "express": "^5.3.0",
     "hono": "^4.13.16",
     "zod": "^4.6.7"

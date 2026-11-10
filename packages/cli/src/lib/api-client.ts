@@ -1,4 +1,6 @@
-import type {MockSession , SessionSummary , CreateSessionInput , AppType} from '../../../server/src';
+import type { SessionData, SessionSummary, CreateSessionInput } from "../../../server/src";
+import type { Mode } from "@nightcode/database";
+import type { SupportedChatModelId } from "@nightcode/shared";
 
 const BASE_URL = "http://localhost:3000";
 
@@ -19,11 +21,29 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const apiClient = {
     sessions: {
         list: () => request<SessionSummary[]>("/sessions"),
-        get: (id: string) => request<MockSession>(`/sessions/${id}`),
+        get: (id: string) => request<SessionData>(`/sessions/${id}`),
         create: (body: CreateSessionInput) =>
-            request<MockSession>("/sessions", {
+            request<SessionData>("/sessions", {
                 method: "POST",
                 body: JSON.stringify(body),
+            }),
+    },
+    chat: {
+        submit: (
+            sessionId: string,
+            body: { content: string; mode: Mode; model: SupportedChatModelId },
+            signal?: AbortSignal,
+        ) =>
+            fetch(`${BASE_URL}/chat/${sessionId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+                signal,
+            }),
+        resume: (sessionId: string, signal?: AbortSignal) =>
+            fetch(`${BASE_URL}/chat/${sessionId}/resume`, {
+                method: "POST",
+                signal,
             }),
     },
 };
