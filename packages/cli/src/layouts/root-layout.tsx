@@ -5,6 +5,7 @@ import {KeyboardLayerProvider} from '../providers/keyboard-layer';
 import {ThemeProvider} from '../providers/theme';
 import {ThemeRoot} from './themed-root';
 import {ErrorBoundary} from '../components/error-boundry'
+import {PromptConfigProvider} from '../providers/prompt-config';
 
 export function RootLayout(){
     return(
@@ -12,11 +13,13 @@ export function RootLayout(){
             <ToastProvider>
                 <KeyboardLayerProvider>
                     <DialogProvider>
-                        <ThemeRoot>
-                            <ErrorBoundary>
-                                <Outlet />
-                            </ErrorBoundary>
-                        </ThemeRoot>
+                        <PromptConfigProvider>
+                            <ThemeRoot>
+                                <ErrorBoundary>
+                                    <Outlet />
+                                </ErrorBoundary>
+                            </ThemeRoot>
+                        </PromptConfigProvider>
                     </DialogProvider>
                 </KeyboardLayerProvider>
             </ToastProvider>

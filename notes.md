@@ -183,3 +183,25 @@ Dimmed dot + dimmed mode label
 partial content preserved in UI
 
 
+
+
+## chapter 6: Session Management and configuration
+
+### step -1 : Session Management
+
+1. /sessions  -> Sessions dialog -> API: $get()   -> navigate("/session/:id")  
+
+2. /new  -> navigate("/")
+
+
+### step - 2: Prompt Config
+
+1.  PromptConfig Provider
+
+11. PromptConfig Provider -> Mode  -> Tab key Plan / Build  -> /agents Dialog
+
+
+12. PromptConfig Provider -> Model -> /models Dialog  -> Status Bar
+
+
+
