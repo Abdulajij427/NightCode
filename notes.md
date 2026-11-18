@@ -205,3 +205,24 @@ partial content preserved in UI
 
 
 
+## chapter 7: Tool Calling
+
+### step - 1 : Messages Parts and Thinking
+
+1. Old: flat text -> New: ordered message parts
+2. 
+21. reasoning -> thinking: ... dimmed border
+22. tool-call -> Read File: src/... ... calling/ done
+23. text
+
+
+### step - 2: Tools and system Prompt
+
+1. Mode ? 
+11. plan -> readFile listDirectory grep glob (read only)
+12. Build -> + writeFile, + editFile, + bash (read + write)
+
+
+2. 
+21. buildSystemPrompt mode-specific rules
+22. stepCountIs(50) agentic loop cap

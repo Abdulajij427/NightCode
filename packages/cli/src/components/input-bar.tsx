@@ -154,7 +154,7 @@ export function InputBar({onSubmit , disabled = false}: props){
                 borderColor="cyan"
                 customBorderChars={{
                     ...EmptyBorder,
-                    vertical:"|",
+                    vertical: "┃",
                     bottomLeft:"",
                 }}>
                 <box

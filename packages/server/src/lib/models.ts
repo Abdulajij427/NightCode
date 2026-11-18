@@ -1,4 +1,4 @@
-import { google } from "@ai-sdk/google";
+import { google , type GoogleLanguageModelOptions} from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { findSupportedChatModel } from "../../../shared/src";
 import type {
@@ -6,7 +6,18 @@ import type {
     SupportedChatModelId,
     SupportedProvider,
 } from "../../../shared/src";
+import type { streamText } from "ai";
 import type { LanguageModel } from "ai";
+
+
+
+type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]["providerOptions"]>;
+
+type ModelConfig = {
+    maxOutputTokens?: number;
+    providerOptions?: ProviderOptions;
+};
+
 
 type GoogleModelId = Extract<
     SupportedChatModel,
@@ -41,6 +52,28 @@ export type ResolvedModel = {
     model: LanguageModel;
     provider: SupportedProvider;
     modelId: SupportedChatModelId;
+    maxOutputTokens?: number;
+    providerOptions?: ProviderOptions;
+};
+
+const GOOGLE_PROVIDER_OPTIONS: Partial<Record<GoogleModelId, ProviderOptions>> = {
+    "gemini-3.8-flash": {
+        google: {
+            thinkingConfig: {
+                thinkingLevel: "low",
+                includeThoughts: true,
+            },
+        } satisfies GoogleLanguageModelOptions,
+    },
+
+    "gemini-3.5-flash-lite": {
+        google: {
+            thinkingConfig: {
+                thinkingLevel: "low",
+                includeThoughts: true,
+            },
+        } satisfies GoogleLanguageModelOptions,
+    },
 };
 
 function assertUnsupportedProvider(provider: never): never {
@@ -52,6 +85,7 @@ function resolveGoogleModel(modelId: GoogleModelId): ResolvedModel {
         model: google(modelId),
         provider: "google",
         modelId,
+        providerOptions: GOOGLE_PROVIDER_OPTIONS[modelId],
     };
 }
 
@@ -101,3 +135,5 @@ export function resolveChatModel(modelId: string): ResolvedModel {
 
     return resolveSupportedChatModel(model);
 }
+
+
