@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { findSupportedChatModel } from "../../../shared/src";
 import {prisma , Role , Mode , MessageStatus} from '../../../database/src'
-
+import { getAuthUser, requireAuth } from "../middleware/require-auth";
 
 
 
@@ -43,9 +43,13 @@ export const createSessionValidator = (
 };
 
 const router = Router();
+router.use(requireAuth);
 
 router.get("/", async (_req, res: Response) => {
     const sessions = await prisma.session.findMany({
+        where: {
+            userId: getAuthUser(res).id,
+        },
         orderBy: {createdAt: "desc"},
         select: {
             id: true,
@@ -66,7 +70,10 @@ router.get("/:id", async (req, res: Response) => {
 
     const { id } = req.params;
     const session = await prisma.session.findUnique({
-        where: {id},
+        where: { 
+            id,
+            userId: getAuthUser(res).id
+        },
         include: {
             messages: {orderBy: {createdAt: "asc"}},
         },
@@ -96,7 +103,7 @@ router.post(
         const session = await prisma.session.create({
             data: {
                 ...data,
-                userId: "mock-user",
+                userId: getAuthUser(res).id,
                 ...(initialMessage && {
                     messages: {
                         create : {

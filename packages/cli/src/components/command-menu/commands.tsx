@@ -67,19 +67,43 @@ export const COMMANDS: Command[] = [
 
     {
         name: "login",
-        description:"Sign in with yoour browser",
+        description: "Sign in with your browser",
         value: "/login",
-        action: (ctx)=>{
-            ctx.toast.show({message: "Opening browser to sign in..."})
-        }
+        action: async (ctx) => {
+            if (ctx.auth.user) {
+            ctx.toast.show({
+                message: `Already signed in as ${ctx.auth.user.email}.`,
+            });
+            return;
+            }
+
+            ctx.toast.show({ message: "Opening browser to sign in..." });
+
+            const user = await ctx.auth.login();
+
+            ctx.toast.show({
+            variant: "success",
+            message: `Signed in as ${user.email}.`,
+            });
+        },
     },
 
     {
         name: "logout",
-        description:"Sign out of your account",
+        description: "Sign out of your account",
         value: "/logout",
-        action: (ctx)=>{
-            ctx.toast.show({variant: "success" , message:"Signed out"})
+        action: async (ctx) => {
+            if (!ctx.auth.user) {
+            ctx.toast.show({ message: "You are not signed in." });
+            return;
+            }
+
+            await ctx.auth.logout();
+
+            ctx.toast.show({
+            variant: "success",
+            message: "Signed out.",
+            });
         },
     },
 

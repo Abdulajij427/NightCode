@@ -226,3 +226,44 @@ partial content preserved in UI
 2. 
 21. buildSystemPrompt mode-specific rules
 22. stepCountIs(50) agentic loop cap
+
+
+
+## chapter 8: Completing the User Experience 
+
+### step - 1: File Mentions
+
+Textarea input  --> findActiveMention parse @query token -->(direct matches + recursive fallback)  getMentionCandidates readdir + filter + sort -->  FileMentionMenu overlay with scrollbox --> Enter on dir: traverse  or Enter: insert path
+
+
+
+### step - 2: clerk Auth
+
+/login --> PKCE OAuth Flow open browser -> Local callback server Bun.server on random port  -> Exchange code for access..token  -> ~/.nightcode/auth.json
+
+
+
+
+
+
+
+## chapter 9: Billing
+
+### polar Credit-Based Billing
+
+1. /upgrade  --> polar checkout open in  browser  ---> polar SDK
+
+
+2. /usage  --> Customer Portal billing history  --> polar SDK
+
+
+3.   requireCreditsBalance middleware  
+31. credits > 0  ----> Allow request
+32. credits = 0  ----> 402: No credits
+
+Guards: POST/sessions
+        POST/chat/:id
+        POST/chat/:id/resume
+
+
+4.  AI streaming ---> onFinish callback totalUsage tokens  ---> calculateCreditsForUsage input/output tokens * pricing   --->   ingestAiUsage events.ingest to polar        

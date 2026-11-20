@@ -2,6 +2,8 @@ import type {ToastContextValue} from '../../providers/toast'
 import type {DialogContextValue} from '../../providers/dialog'
 import type  {Mode} from '@nightcode/database/enums';
 import type {SupportedChatModelId} from '@nightcode/shared'
+import type { AuthContextValue } from "../../providers/auth";
+
 
 export type CommandContext = {
     exit: () => void;
@@ -11,7 +13,7 @@ export type CommandContext = {
     mode: Mode;
     setMode: (mode: Mode) => void;
     setModel: (model : SupportedChatModelId) => void;
-
+    auth: AuthContextValue;
 };
 
 

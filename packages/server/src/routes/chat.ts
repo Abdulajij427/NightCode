@@ -17,7 +17,7 @@ import {createTools} from '../tools';
 import {buildSystemPrompt} from '../system-prompt';
 import {isSupportedChatModel , resolveChatModel} from '../lib/models';
 import type { SSEStream } from "../lib/sse";
-
+import { getAuthUser, requireAuth } from "../middleware/require-auth";
 
 
 const submitSchema = z.object({
@@ -283,6 +283,7 @@ async function streamAIResponse(stream: SSEStream, params: StreamParams) {
 
 // routes
 const router = Router();
+router.use(requireAuth);
 type SubmitInput = z.infer<typeof submitSchema>;
 
 router.post(
@@ -290,8 +291,11 @@ router.post(
     async (req: Request<{sessionId: string}> , res: Response) => {
         const {sessionId} = req.params;
 
-        const session = await prisma.session.findUnique({
-            where: {id: sessionId},
+        const session = await prisma.session.findFirst({
+            where: {
+                id: sessionId,
+                userId: getAuthUser(res).id,
+            },
             include: {messages: {orderBy: {createdAt: "asc"}}},
         });
 
@@ -362,8 +366,11 @@ router.post(
         const data = req.body;
 
         // history ke liye sirf zaroori fields
-        const session = await prisma.session.findUnique({
-            where: { id: sessionId },
+        const session = await prisma.session.findFirst({
+            where: { 
+                id: sessionId,
+                userId: getAuthUser(res).id
+             },
             select: {
                 cwd: true,
                 messages: {

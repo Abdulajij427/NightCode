@@ -1,14 +1,23 @@
 import express from "express";
+import authRouter from "./routes/auth";
+import cliAuthRouter from "./routes/cli-auth";
 import type { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/bun";
 import sessionsRouter from "./routes/sessions";
 import chatRouter from "./routes/chat"
+import oauthRouter from "./routes/oauth";
+
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 app.use("/sessions", sessionsRouter);
-app.use("/chat" , chatRouter)
+app.use("/chat" , chatRouter);
+app.use("/auth", authRouter);
+app.use("/auth/cli", cliAuthRouter);
+app.use("/auth/oauth", oauthRouter);
+
 
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

@@ -22,9 +22,16 @@ enum Mode {
   PLAN
 }
 
+enum OAuthProvider {
+  GOOGLE
+  GITHUB
+}
+
+
 enum MessageStatus {
   PENDING
   STREAMING
+  INTERRUPTED
   COMPLETE
   ERROR
 }
@@ -32,8 +39,101 @@ enum MessageStatus {
 
 
 
+model User {
+  id                       String                    @id @default(cuid())
+  email                    String                    @unique
+  passwordHash             String?
+  emailVerifiedAt          DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  sessions                 Session[]
+  authSessions             AuthSession[]
+  oauthAccounts            OAuthAccount[]
+  cliAuthorizationRequests CliAuthorizationRequest[]
+  verificationTokens       EmailVerificationToken[]
+  passwordResetTokens      PasswordResetToken[]
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+} 
 
 
+model AuthSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime?
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model OAuthAccount {
+  id                String        @id @default(cuid())
+  provider          OAuthProvider
+  providerAccountId String
+  createdAt         DateTime      @default(now())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model CliAuthorizationRequest {
+  id            String    @id @default(cuid())
+  codeChallenge String
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  approvedAt    DateTime?
+  consumedAt    DateTime?
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthStates   OAuthAuthorizationState[]
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+
+model OAuthAuthorizationState {
+  id                      String        @id @default(cuid())
+  stateHash               String        @unique
+  provider                OAuthProvider
+  expiresAt               DateTime
+  createdAt               DateTime      @default(now())
+  usedAt                  DateTime?
+  cliAuthorizationRequestId String
+  cliAuthorizationRequest   CliAuthorizationRequest @relation(fields: [cliAuthorizationRequestId], references: [id], onDelete: Cascade)
+
+  @@index([cliAuthorizationRequestId])
+  @@index([expiresAt])
+}
 
 
 model Session {
@@ -41,12 +141,17 @@ model Session {
   title     String
   cwd       String?
   userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   messages  Message[]
 
   @@index([userId])
 }
+
+
+
+
 
 model Message {
   id        String        @id @default(cuid())
