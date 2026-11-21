@@ -1,7 +1,7 @@
 import type {Command} from './types.ts'
 import { AgentsDialogContent,SessionsDialogContent , ThemeDialogContent , ModelsDialogContent} from '../dialogs'
 import {SUPPORTED_CHAT_MODELS} from '@nightcode/shared'
-
+import {openBillingPortal , openUpgradeCheckout} from '../../lib/upgrade';
 
 export const COMMANDS: Command[] = [
     {
@@ -111,8 +111,19 @@ export const COMMANDS: Command[] = [
         name: "upgrade",
         description: "Buy more credits",
         value: "/upgrade",
-        action: (ctx)=>{
+        action: async (ctx)=>{
             ctx.toast.show({message: "opening credits checkout.."});
+
+            try {
+                await openUpgradeCheckout();
+                ctx.toast.show({
+                    variant: "success",
+                    message: "Checkout opened in browser",
+                });
+            } catch (error) {
+                const message = error instanceof Error ? error.message : "Failed to open checkout";
+                ctx.toast.show({variant : "error" , message});
+            }
         },
     },
 
@@ -120,9 +131,20 @@ export const COMMANDS: Command[] = [
         name:"usage",
         description:"Open billing portal in your browser",
         value: "/usage",
-        action: (ctx)=>{
-            ctx.toast.show({message: "opening billing portal..."})
-        }
+        action: async (ctx)=>{
+            ctx.toast.show({message: "opening billing portal..."});
+
+            try {
+                await openBillingPortal();
+                ctx.toast.show({
+                    variant: "success",
+                    message: "Billing portal opened in browser",
+                });
+            } catch (error){
+                const message = error instanceof Error ? error.message : "Failed to open billing portal";
+                ctx.toast.show({variant : "error", message});
+            }
+        },
     },
 
     {

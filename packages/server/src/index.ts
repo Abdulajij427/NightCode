@@ -6,7 +6,7 @@ import * as Sentry from "@sentry/bun";
 import sessionsRouter from "./routes/sessions";
 import chatRouter from "./routes/chat"
 import oauthRouter from "./routes/oauth";
-
+import billingRouter from './routes/billing';
 
 const app = express();
 app.use(express.json());
@@ -17,7 +17,8 @@ app.use("/chat" , chatRouter);
 app.use("/auth", authRouter);
 app.use("/auth/cli", cliAuthRouter);
 app.use("/auth/oauth", oauthRouter);
-
+app.use("/billing", billingRouter);
+app.use("/billing" , billingRouter);
 
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
@@ -49,4 +50,6 @@ export type AppType = {
         body: CreateSessionInput;
         response: SessionData;
     };
+    "POST /billing/checkout": { response: { url: string } };
+    "POST /billing/portal": { response: { url: string } };
 };

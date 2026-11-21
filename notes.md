@@ -267,3 +267,6 @@ Guards: POST/sessions
 
 
 4.  AI streaming ---> onFinish callback totalUsage tokens  ---> calculateCreditsForUsage input/output tokens * pricing   --->   ingestAiUsage events.ingest to polar        
+
+
+

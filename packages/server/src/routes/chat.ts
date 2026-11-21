@@ -19,6 +19,11 @@ import {isSupportedChatModel , resolveChatModel} from '../lib/models';
 import type { SSEStream } from "../lib/sse";
 import { getAuthUser, requireAuth } from "../middleware/require-auth";
 
+import type {LanguageModelUsage} from 'ai';
+import {requireCreditsBalance} from '../middleware/require-credits-balance';
+import {calculateCreditsForUsage} from '../lib/polar/credits';
+import {ingestAiUsage} from '../lib/polar/polar';
+
 
 const submitSchema = z.object({
     content: z.string(),
@@ -80,6 +85,7 @@ function getResumableUserMessage(
 
 type    StreamParams = {
     sessionId: string;
+    userId: string;
     model: string;
     cwd: string | null;
     history: {role : "user" | "assistant"; content: string}[];
@@ -88,13 +94,19 @@ type    StreamParams = {
 };
 
 
+type IngestUsageForMessageParams = {
+    messageId: string;
+    status: "complete" | "interrupted";
+};
+
+
 async function streamAIResponse(stream: SSEStream, params: StreamParams) {
-    const { sessionId, model, cwd , history, mode, abortController } = params;
+    const { sessionId, model, userId ,cwd , history, mode, abortController } = params;
     const startTime = Date.now();
     const tools = cwd ? createTools(cwd , mode) : undefined;
     const parts: MessagePart[] = [];
     const resolvedModel = resolveChatModel(model);
-    
+    let completedUsage: LanguageModelUsage | null = null;
 
     const persistInterruptedMessage = async () => {
         const fullText = parts
@@ -108,7 +120,7 @@ async function streamAIResponse(stream: SSEStream, params: StreamParams) {
         const validatedParts: Prisma.InputJsonValue | undefined =
             parts.length > 0 ? messagePartsSchema.parse(parts) : undefined;
 
-        await prisma.message.create({
+        return prisma.message.create({
             data: {
                 sessionId,
                 role: "ASSISTANT",
@@ -122,6 +134,42 @@ async function streamAIResponse(stream: SSEStream, params: StreamParams) {
         });
     };
 
+    const ingestUsageForMessage = async ({messageId , status}: IngestUsageForMessageParams) => {
+        if (!completedUsage) return;
+
+        try {
+            const billableUsage = calculateCreditsForUsage({
+                provider: resolvedModel.provider,
+                model: resolvedModel.modelId,
+                usage: completedUsage,
+            });
+
+            await ingestAiUsage({
+                externalCustomerId: userId,
+                eventId: `chat-message:${messageId}`,
+                credits: billableUsage.credits,
+            });
+        } catch(error) {
+            console.error("Failed to ingest Polar AI usage for chat message", {
+                error,
+                sessionId,
+                messageId,
+                userId,
+            });
+        }
+    };
+
+
+    const persistInterruptedMessageAndUsage = async () => {
+        const interruptedMessage = await persistInterruptedMessage();
+        if (!interruptedMessage) return;
+
+        await ingestUsageForMessage({
+            messageId: interruptedMessage.id,
+            status: "interrupted",
+        });
+    };
+
     try {
         const result = aiStreamText({
             model : resolvedModel.model,
@@ -131,9 +179,12 @@ async function streamAIResponse(stream: SSEStream, params: StreamParams) {
             stopWhen: tools ? stepCountIs(50): undefined,
             abortSignal: abortController.signal,
             providerOptions: resolvedModel.providerOptions,
+            onFinish(event){
+                completedUsage = event.usage;
+            }
         });
 
-        for await (const part of result.fullStream){
+        for await (const part of result.stream){
             if (stream.aborted) break;
 
             if (part.type === "reasoning-delta"){
@@ -215,7 +266,7 @@ async function streamAIResponse(stream: SSEStream, params: StreamParams) {
         }
 
         if (stream.aborted || abortController.signal.aborted){
-            await persistInterruptedMessage();
+            await persistInterruptedMessageAndUsage();
             return;
         }
 
@@ -242,6 +293,11 @@ async function streamAIResponse(stream: SSEStream, params: StreamParams) {
             },
         });
 
+        await ingestUsageForMessage({
+            messageId: assistantMessage.id,
+            status: "complete",
+        });
+
 
         const doneEvent: ChatStreamEvent = {
             type : "done",
@@ -252,7 +308,7 @@ async function streamAIResponse(stream: SSEStream, params: StreamParams) {
         await stream.send({event: "done", data: JSON.stringify(doneEvent)});
     }catch(error) {
         if (abortController.signal.aborted){
-            await persistInterruptedMessage();
+            await persistInterruptedMessageAndUsage();
             return;
         }
 
@@ -290,11 +346,12 @@ router.post(
     "/:sessionId/resume",
     async (req: Request<{sessionId: string}> , res: Response) => {
         const {sessionId} = req.params;
+        const userId = getAuthUser(res).id;
 
         const session = await prisma.session.findFirst({
             where: {
                 id: sessionId,
-                userId: getAuthUser(res).id,
+                userId,
             },
             include: {messages: {orderBy: {createdAt: "asc"}}},
         });
@@ -338,6 +395,7 @@ router.post(
         try {
             await streamAIResponse(stream, {
                 sessionId,
+                userId,
                 model: resumableMessage.model,
                 cwd: session.cwd,
                 history,
@@ -360,16 +418,18 @@ router.post(
 
 router.post(
     "/:sessionId",
+    requireCreditsBalance,
     submitValidator,
     async (req: Request<{ sessionId: string }, unknown, SubmitInput>, res: Response) => {
         const { sessionId } = req.params;
         const data = req.body;
+        const userId = getAuthUser(res).id;
 
         // history ke liye sirf zaroori fields
         const session = await prisma.session.findFirst({
             where: { 
                 id: sessionId,
-                userId: getAuthUser(res).id
+                userId,
              },
             select: {
                 cwd: true,
@@ -412,6 +472,7 @@ router.post(
         try {
             await streamAIResponse(stream, {
                 sessionId,
+                userId,
                 model: data.model,
                 cwd : session.cwd,
                 history,

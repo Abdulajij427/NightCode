@@ -57,29 +57,37 @@ export const apiClient = {
   },
 
   chat: {
-    submit: async (
-      sessionId: string,
-      body: {
-        content: string;
-        mode: Mode;
-        model: SupportedChatModelId;
-      },
-      signal?: AbortSignal,
-    ) =>
-      fetch(`${BASE_URL}/chat/${sessionId}`, {
-        method: "POST",
-        headers: await createHeaders(),
-        body: JSON.stringify(body),
-        signal,
-      }),
+        submit: async (
+        sessionId: string,
+        body: {
+            content: string;
+            mode: Mode;
+            model: SupportedChatModelId;
+        },
+        signal?: AbortSignal,
+        ) =>
+        fetch(`${BASE_URL}/chat/${sessionId}`, {
+            method: "POST",
+            headers: await createHeaders(),
+            body: JSON.stringify(body),
+            signal,
+        }),
 
-    resume: async (sessionId: string, signal?: AbortSignal) =>
-      fetch(`${BASE_URL}/chat/${sessionId}/resume`, {
-        method: "POST",
-        headers: await createHeaders(),
-        signal,
-      }),
-  },
+        resume: async (sessionId: string, signal?: AbortSignal) =>
+        fetch(`${BASE_URL}/chat/${sessionId}/resume`, {
+            method: "POST",
+            headers: await createHeaders(),
+            signal,
+        }),
+    },
+
+    billing : {
+        checkout: () =>
+        request<{ url: string }>("/billing/checkout", { method: "POST" }),
+        portal: () =>
+        request<{ url: string }>("/billing/portal", { method: "POST" }),
+  
+    },
 };
 
 

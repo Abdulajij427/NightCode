@@ -10,7 +10,12 @@ import { apiClient } from '../lib/api-client';
 const newSessionStateSchema = z.object({
     message: z.string(),
     mode: z.enum(Mode),
-    model: z.string(), 
+    model: z.enum([
+        'gemini-3.5-flash-lite',
+        'gemini-3.8-flash',
+        'openai/gpt-oss-20b',
+        'llama3.2',
+    ]),
 });
 
 export function NewSession() {

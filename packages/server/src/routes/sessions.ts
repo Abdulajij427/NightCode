@@ -4,7 +4,8 @@ import { z } from "zod";
 import { findSupportedChatModel } from "../../../shared/src";
 import {prisma , Role , Mode , MessageStatus} from '../../../database/src'
 import { getAuthUser, requireAuth } from "../middleware/require-auth";
-
+import {requireCreditsBalance} from '../middleware/require-credits-balance';
+import {isSupportedChatModel} from '../lib/models';
 
 
 
@@ -18,7 +19,7 @@ export const createSessionSchema = z.object({
             mode: z.enum(Mode),
             model: z
                 .string()
-                .refine((id) => !!findSupportedChatModel(id), "Unsupported model"),
+                .refine(isSupportedChatModel, "Unsupported model"),
         })
         .optional(),
 });
@@ -88,6 +89,7 @@ router.get("/:id", async (req, res: Response) => {
 
 router.post(
     "/",
+    requireCreditsBalance,
     createSessionValidator,
     async (
         req: Request<{}, CreateSessionInput>,

@@ -238,13 +238,13 @@ router.get("/reset-password", (req, res) => {
     browserPage(
       "Reset password",
       `<h1>Reset your password</h1>
-<form method="post" action="/auth/reset-password">
-  <input type="hidden" name="token" value="${escapeHtml(token)}" />
-  <label for="password">New password</label><br />
-  <input id="password" name="password" type="password" minlength="8" required style="margin:8px 0 16px; padding:8px; width:100%;" />
-  <br />
-  <button type="submit">Save new password</button>
-</form>`,
+        <form method="post" action="/auth/reset-password">
+        <input type="hidden" name="token" value="${escapeHtml(token)}" />
+        <label for="password">New password</label><br />
+        <input id="password" name="password" type="password" minlength="8" required style="margin:8px 0 16px; padding:8px; width:100%;" />
+        <br />
+        <button type="submit">Save new password</button>
+        </form>`,
     ),
   );
 });
