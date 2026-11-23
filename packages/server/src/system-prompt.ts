@@ -1,14 +1,14 @@
-import type {Mode} from "../../database/src";
+import type {ModeType} from "../../shared/src";
 
 
 type SystemPromptParams = {
-    cwd: string | null;
-    mode: Mode;
+    
+    mode: ModeType;
 };
 
 
 
-export function buildSystemPrompt({cwd , mode}: SystemPromptParams):
+export function buildSystemPrompt({mode}: SystemPromptParams):
 string {
     const parts: string[] = [];
 
@@ -28,9 +28,7 @@ string {
         -**BUILD** - full implementation with read and write tools.`);
 
     
-    if (cwd) {
-        parts.push(`\n The  user's project directory is: ${cwd}`);
-    } 
+    
 
 
     if (mode === "PLAN"){
@@ -51,7 +49,7 @@ string {
             -- After making changes , verify the work when possible`);
     }
 
-    if (cwd && mode === "PLAN") {
+    if ( mode === "PLAN") {
         parts.push(`
             ## Tool Usage
             You have these tools available:
@@ -69,7 +67,7 @@ string {
     }
 
 
-    if (cwd && mode === "BUILD"){
+    if ( mode === "BUILD"){
         parts.push(`
             ## Tool Usage
             You have these tools available:

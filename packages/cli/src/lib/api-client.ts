@@ -3,7 +3,7 @@ import type {
   SessionSummary,
   CreateSessionInput,
 } from "../../../server/src";
-import type { Mode } from "@nightcode/database";
+import {Mode} from '../../../database/src/enums';
 import type { SupportedChatModelId } from "@nightcode/shared";
 import { getStoredAccessToken } from "./auth-storage";
 

@@ -35,7 +35,7 @@ function createApiError(message: string, status: number): ApiError {
   return Object.assign(new Error(message), { status });
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, init);
   const body = (await response.json().catch(() => ({}))) as {
     error?: string;

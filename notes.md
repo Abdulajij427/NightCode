@@ -270,3 +270,5 @@ Guards: POST/sessions
 
 
 
+## chapter 10: client side tool execution
+

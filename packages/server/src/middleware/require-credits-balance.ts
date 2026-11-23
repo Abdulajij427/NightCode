@@ -12,7 +12,8 @@ export const requireCreditsBalance: RequestHandler = async (_req, res, next) => 
   let creditsBalance: number;
   try {
     creditsBalance = await getAvailableCreditsBalance(user.id);
-  } catch {
+  } catch (error){
+    console.error("Credits balance check failed:", error)
     res.status(503).json({ error: "Unable to verify credits balance right now." });
     return;
   }

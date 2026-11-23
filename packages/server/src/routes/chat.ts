@@ -1,496 +1,234 @@
-import express ,{Router} from 'express';
-import type {Request , Response , NextFunction} from 'express';
-import { createSessionValidator } from "./sessions";
-import { createSSEStream } from "../lib/sse";
-import {z} from 'zod';
-import {prisma} from '../../../database/src';
-import { Prisma } from '../../../database/generated/prisma/client';;
-import { streamText as aiStreamText , stepCountIs} from 'ai';
-import {Role ,Mode , MessageStatus} from '../../../database/src';
-
-import {type ChatStreamEvent,
-        type MessagePart,
-        toolCallArgsSchema,
-        messagePartsSchema,
-} from '../../../shared/src';
-import {createTools} from '../tools';
-import {buildSystemPrompt} from '../system-prompt';
-import {isSupportedChatModel , resolveChatModel} from '../lib/models';
-import type { SSEStream } from "../lib/sse";
+import { Router } from "express";
+import type { Request, Response, NextFunction } from "express";
+import { z } from "zod";
+import { prisma } from "../../../database/src";
+import { Prisma } from "../../../database/generated/prisma/client";
+import {
+    consumeStream,
+    convertToModelMessages,
+    pipeUIMessageStreamToResponse,
+    streamText,
+    toUIMessageStream,
+    validateUIMessages,
+    type InferUITools,
+    type LanguageModelUsage,
+    type ToolSet,
+    type UIMessage,
+} from "ai";
+import {
+    getToolContracts,
+    modeSchema,
+    type ModeType,
+    type ToolContracts,
+} from "@nightcode/shared";
+import { buildSystemPrompt } from "../system-prompt";
 import { getAuthUser, requireAuth } from "../middleware/require-auth";
+import { requireCreditsBalance } from "../middleware/require-credits-balance";
+import { calculateCreditsForUsage } from "../lib/polar/credits";
+import { ingestAiUsage } from "../lib/polar/polar";
+import { isSupportedChatModel, resolveChatModel } from "../lib/models";
 
-import type {LanguageModelUsage} from 'ai';
-import {requireCreditsBalance} from '../middleware/require-credits-balance';
-import {calculateCreditsForUsage} from '../lib/polar/credits';
-import {ingestAiUsage} from '../lib/polar/polar';
+type ChatMessageMetadata = {
+    mode?: ModeType;
+    model?: string;
+    durationMs?: number;
+    usage?: LanguageModelUsage;
+};
 
+type NightcodeUIMessage = UIMessage<
+    ChatMessageMetadata,
+    never,
+    InferUITools<ToolContracts & ToolSet>
+>;
 
 const submitSchema = z.object({
-    content: z.string(),
-    mode: z.enum(Mode),
-    model: z.string().refine(isSupportedChatModel , "Unsupported model"),
+    id: z.string(),
+    messages: z
+        .array(
+            z.custom<NightcodeUIMessage>((value) => {
+                return (
+                    value != null &&
+                    typeof value === "object" &&
+                    "id" in value &&
+                    "parts" in value
+                );
+            }),
+        )
+        .min(1),
+    mode: modeSchema,
+    model: z.string().refine(isSupportedChatModel, "Unsupported model"),
 });
 
-
+type SubmitInput = z.infer<typeof submitSchema>;
 
 const submitValidator = (req: Request, res: Response, next: NextFunction) => {
     const result = submitSchema.safeParse(req.body);
 
     if (!result.success) {
-        return res.status(400).json({ error: "Invalid request body" });
+        res.status(400).json({ error: "Invalid request body" });
+        return;
     }
 
     req.body = result.data;
     next();
 };
 
-
-// it is used to stop coversation  in  middle 
-const activeResumeSessionIds = new Set<string>();
-
-
-// strip error messages and empty assistant messsages from the conversation
-function buildConversationHistory(
-    messages: {role: string; content: string; status: string}[],
-){
-    return messages.flatMap((m) => {
-        if (m.role !== "USER" && m.role !== "ASSISTANT") return [];
-        if (m.role === "ASSISTANT" && m.content.length === 0) return [];
-
-        return [
-            {role: m.role === "USER" ? ("user" as const) : ("assistant" as const),
-                content: m.content
-            },
-        ];
-
+function hasPendingToolCalls(message: NightcodeUIMessage) {
+    return message.parts.some((part) => {
+        if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+            const state = (part as { state?: string }).state;
+            return state !== "output-available" && state !== "output-error";
+        }
+        return false;
     });
-};
-
-
-function getResumableUserMessage(
-    messages: {
-        role: "USER" | "ASSISTANT" | "ERROR"; 
-        model: string;
-        mode: Mode
-    }[],
-){
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage || lastMessage.role !== "USER"){
-        return null;
-    }
-
-    return lastMessage;
 }
 
-
-type    StreamParams = {
-    sessionId: string;
-    userId: string;
-    model: string;
-    cwd: string | null;
-    history: {role : "user" | "assistant"; content: string}[];
-    mode: Mode;
-    abortController: AbortController;
-};
-
-
-type IngestUsageForMessageParams = {
-    messageId: string;
-    status: "complete" | "interrupted";
-};
-
-
-async function streamAIResponse(stream: SSEStream, params: StreamParams) {
-    const { sessionId, model, userId ,cwd , history, mode, abortController } = params;
-    const startTime = Date.now();
-    const tools = cwd ? createTools(cwd , mode) : undefined;
-    const parts: MessagePart[] = [];
-    const resolvedModel = resolveChatModel(model);
-    let completedUsage: LanguageModelUsage | null = null;
-
-    const persistInterruptedMessage = async () => {
-        const fullText = parts
-            .filter((p)=> p.type === "text")
-            .map((p) => p.text)
-            .join("");
-
-        if (fullText.length === 0 && parts.length === 0) return;    
-
-        const elapsedMs = Date.now() - startTime;
-        const validatedParts: Prisma.InputJsonValue | undefined =
-            parts.length > 0 ? messagePartsSchema.parse(parts) : undefined;
-
-        return prisma.message.create({
-            data: {
-                sessionId,
-                role: "ASSISTANT",
-                status: MessageStatus.INTERRUPTED,
-                model,
-                content: fullText,
-                parts: validatedParts,
-                mode,
-                duration: Math.round(elapsedMs / 1000),
-            },
-        });
-    };
-
-    const ingestUsageForMessage = async ({messageId , status}: IngestUsageForMessageParams) => {
-        if (!completedUsage) return;
-
-        try {
-            const billableUsage = calculateCreditsForUsage({
-                provider: resolvedModel.provider,
-                model: resolvedModel.modelId,
-                usage: completedUsage,
-            });
-
-            await ingestAiUsage({
-                externalCustomerId: userId,
-                eventId: `chat-message:${messageId}`,
-                credits: billableUsage.credits,
-            });
-        } catch(error) {
-            console.error("Failed to ingest Polar AI usage for chat message", {
-                error,
-                sessionId,
-                messageId,
-                userId,
-            });
-        }
-    };
-
-
-    const persistInterruptedMessageAndUsage = async () => {
-        const interruptedMessage = await persistInterruptedMessage();
-        if (!interruptedMessage) return;
-
-        await ingestUsageForMessage({
-            messageId: interruptedMessage.id,
-            status: "interrupted",
-        });
-    };
-
-    try {
-        const result = aiStreamText({
-            model : resolvedModel.model,
-            system: buildSystemPrompt({cwd , mode}),
-            messages: history,
-            tools,
-            stopWhen: tools ? stepCountIs(50): undefined,
-            abortSignal: abortController.signal,
-            providerOptions: resolvedModel.providerOptions,
-            onFinish(event){
-                completedUsage = event.usage;
-            }
-        });
-
-        for await (const part of result.stream){
-            if (stream.aborted) break;
-
-            if (part.type === "reasoning-delta"){
-                const last = parts[parts.length - 1];
-                if (last && last.type === "reasoning"){
-                    last.text += part.text;
-                } else{
-                    parts.push({type : "reasoning", text: part.text});
-                }
-                const event : ChatStreamEvent = {type : "reasoning-delta", text: part.text};
-                stream.send({
-                    event: "reasoning-delta",
-                    data: JSON.stringify(event)
-                });
-            }
-
-            if (part.type === "text-delta"){
-                
-                const last = parts[parts.length - 1]
-                if (last && last.type === "text"){
-                    last.text += part.text;
-                } else {
-                    parts.push({type :"text", text: part.text});
-                }
-
-                const event: ChatStreamEvent = {type : "text-delta" , text: part.text};
-                stream.send({event: "text-delta" , data: JSON.stringify(event)})
-            }
-
-            if (part.type === "tool-call"){
-                const args = toolCallArgsSchema.parse(part.input);
-
-                parts.push({
-                    type: "tool-call",
-                    id: part.toolCallId,
-                    name: part.toolName,
-                    args,
-                });
-
-                const event : ChatStreamEvent = {
-                    type: "tool-call",
-                    toolCallId: part.toolCallId,
-                    toolName: part.toolName,
-                    args,
-                };
-
-                stream.send({event: "tool-call" , data: JSON.stringify(event)});
-            }
-
-            if(part.type === "tool-result"){
-                const resultStr = 
-                    typeof part.output === "string" ? part.output : JSON.stringify(part.output);
-
-                const tcPart = parts.find(
-                    (p): p is Extract<MessagePart , {type: "tool-call"}> =>
-                        p.type === "tool-call" && p.id === part.toolCallId,
-                );    
-
-                if (tcPart) {
-                    tcPart.result = resultStr;
-                }
-
-                const event: ChatStreamEvent = {
-                    type: "tool-result",
-                    toolCallId: part.toolCallId,
-                    result: resultStr,
-                };
-
-                stream.send({event : "tool-result", data: JSON.stringify(event)});
-            }
-
-
-
-
-
-            if (part.type === "error"){
-                throw part.error;
-            }
-        }
-
-        if (stream.aborted || abortController.signal.aborted){
-            await persistInterruptedMessageAndUsage();
-            return;
-        }
-
-        const elapsedMs = Date.now() - startTime;
-        const fullText = parts 
-            .filter((p) => p.type === "text")
-            .map((p) => p.text)
-            .join("");
-
-        const validatedParts: Prisma.InputJsonValue  | undefined =
-            parts.length > 0 ? messagePartsSchema.parse(parts) : undefined;
-
-        
-        const assistantMessage = await prisma.message.create({
-            data: {
-                sessionId,
-                role: "ASSISTANT",
-                status: MessageStatus.COMPLETE,
-                model,
-                content: fullText,
-                parts: validatedParts,
-                mode,
-                duration: Math.round(elapsedMs / 1000),
-            },
-        });
-
-        await ingestUsageForMessage({
-            messageId: assistantMessage.id,
-            status: "complete",
-        });
-
-
-        const doneEvent: ChatStreamEvent = {
-            type : "done",
-            messageId: assistantMessage.id,
-            durationMs: elapsedMs
-        };
-
-        await stream.send({event: "done", data: JSON.stringify(doneEvent)});
-    }catch(error) {
-        if (abortController.signal.aborted){
-            await persistInterruptedMessageAndUsage();
-            return;
-        }
-
-
-        const message = error instanceof Error ? error.message : String(error);
-
-        await prisma.message.create({
-            data: {
-                sessionId,
-                role: "ERROR",
-                status: MessageStatus.COMPLETE,
-                model,
-                content: message,
-                mode,
-            },
-        });
-
-        const errorEvent: ChatStreamEvent = {type: "error", message};
-        await stream.send({event: "error", data: JSON.stringify(errorEvent)});
-    }
-    // baaki logic: stream.send(...) se chunks bhejo
-};
-
-
-
-
-
-
-// routes
 const router = Router();
-router.use(requireAuth);
-type SubmitInput = z.infer<typeof submitSchema>;
 
 router.post(
-    "/:sessionId/resume",
-    async (req: Request<{sessionId: string}> , res: Response) => {
-        const {sessionId} = req.params;
-        const userId = getAuthUser(res).id;
-
-        const session = await prisma.session.findFirst({
-            where: {
-                id: sessionId,
-                userId,
-            },
-            include: {messages: {orderBy: {createdAt: "asc"}}},
-        });
-
-        if(!session){
-            return res.status(404).json({message: "Session not found"});
-        }
-
-        const resumableMessage = getResumableUserMessage(session.messages);
-        if(!resumableMessage){
-                return res.status(409).json({message: "Session has no pending user message to resume"})
-        }
-
-        if(!isSupportedChatModel(resumableMessage.model)){
-            return res.status(409).json({message: `Session uses unsupported model: ${resumableMessage.model}`})
-
-        }
-
-        const mode = z.enum(Mode).safeParse(resumableMessage.mode);
-        if (!mode.success) {
-            return res.status(409).json({message: `Session uses unsupported mode: ${resumableMessage.mode}`});
-        }
-
-        if(activeResumeSessionIds.has(sessionId)){
-            return (
-                res.status(409).json({message:"Session already has an active resume"})
-            );
-        }
-
-        activeResumeSessionIds.add(sessionId);
-
-        const history = buildConversationHistory(session.messages);
-        const stream = createSSEStream(req, res);
-        const abortController = new AbortController();
-
-        // Hono ke stream.onAbort ki jagah
-        res.on("close", () => {
-            if (!res.writableEnded) abortController.abort();
-        });
-
-        try {
-            await streamAIResponse(stream, {
-                sessionId,
-                userId,
-                model: resumableMessage.model,
-                cwd: session.cwd,
-                history,
-                mode:resumableMessage.mode,
-                abortController,
-            });
-        } catch (error) {
-            const errorEvent: ChatStreamEvent = {
-                type: "error",
-                message: error instanceof Error ? error.message : String(error),
-            };
-            stream.send({ event: "error", data: JSON.stringify(errorEvent) });
-            activeResumeSessionIds.delete(sessionId);
-        } finally {
-            stream.close();
-            activeResumeSessionIds.delete(sessionId);
-        }
-    }
-)
-
-router.post(
-    "/:sessionId",
+    "/",
+    requireAuth,
     requireCreditsBalance,
     submitValidator,
-    async (req: Request<{ sessionId: string }, unknown, SubmitInput>, res: Response) => {
-        const { sessionId } = req.params;
-        const data = req.body;
+    async (req: Request, res: Response, next: NextFunction) => {
         const userId = getAuthUser(res).id;
+        const { id, messages, mode, model } = req.body as SubmitInput;
 
-        // history ke liye sirf zaroori fields
-        const session = await prisma.session.findFirst({
-            where: { 
-                id: sessionId,
-                userId,
-             },
-            select: {
-                cwd: true,
-                messages: {
-                    orderBy: { createdAt: "asc" },
-                    select: { role: true, content: true, status: true },
-                },
-            },
+        const session = await prisma.session.findUnique({
+            where: { id, userId },
         });
 
-        // stream shuru hone se pehle hi 404, baad mein status badal nahi sakte
         if (!session) {
-            res.status(404).json({ message: "Session not found" });
+            res.status(404).json({ error: "Session not found" });
             return;
         }
 
-        await prisma.message.create({
-            data: {
-                sessionId,
-                role: Role.USER,
-                status: MessageStatus.COMPLETE,
-                model: data.model,
-                content: data.content,
-                mode: data.mode,
-            },
+        const startTime = Date.now();
+        const tools = getToolContracts(mode);
+        const resolvedModel = resolveChatModel(model);
+        const previousMessages = Array.isArray(session.messages)
+            ? (session.messages as unknown as NightcodeUIMessage[])
+            : [];
+
+        const mergedMessages = [...previousMessages];
+
+        for (const message of messages) {
+            const incomingMessage = {
+                ...message,
+                metadata: { ...message.metadata, mode, model },
+            } satisfies NightcodeUIMessage;
+
+            const existingMessageIndex = mergedMessages.findIndex(
+                (m) => m.id === incomingMessage.id,
+            );
+
+            if (existingMessageIndex === -1) {
+                mergedMessages.push(incomingMessage);
+            } else {
+                mergedMessages[existingMessageIndex] = incomingMessage;
+            }
+        }
+
+        const nextMessages = await validateUIMessages<NightcodeUIMessage>({
+            messages: mergedMessages,
+            tools: tools as unknown as ToolSet,
         });
 
-        const history = buildConversationHistory([
-            ...session.messages,
-            { role: Role.USER, content: data.content, status: MessageStatus.COMPLETE },
-        ]);
+        const modelMessages = await convertToModelMessages(nextMessages, {
+            tools: tools as unknown as ToolSet,
+        });
+        let completedUsage: LanguageModelUsage | null = null;
 
-        const stream = createSSEStream(req, res);
+        // Client disconnect hone par model ki request bhi cancel ho
         const abortController = new AbortController();
-
         res.on("close", () => {
             if (!res.writableEnded) abortController.abort();
         });
 
+        const result = streamText({
+            model: resolvedModel.model,
+            system: buildSystemPrompt({ mode }),
+            messages: modelMessages,
+            tools: tools as unknown as ToolSet,
+            providerOptions: resolvedModel.providerOptions,
+            abortSignal: abortController.signal,
+            onEnd(event) {
+                completedUsage = event.usage;
+            },
+        });
+
+        const uiStream = toUIMessageStream({
+            stream: result.stream,
+            originalMessages: nextMessages,
+            messageMetadata({ part }) {
+                if (part.type === "start") {
+                    return { mode, model };
+                }
+
+                if (part.type !== "finish") return undefined;
+
+                return {
+                    mode,
+                    model,
+                    durationMs: Date.now() - startTime,
+                    ...(completedUsage ? { usage: completedUsage } : {}),
+                };
+            },
+            async onEnd(event) {
+                if (event.isAborted) return;
+
+                if (hasPendingToolCalls(event.responseMessage)) return;
+
+                await prisma.session.update({
+                    where: { id, userId },
+                    data: {
+                        messages: event.messages as unknown as Prisma.InputJsonValue,
+                    },
+                });
+
+                if (!completedUsage) return;
+
+                try {
+                    const billableUsage = calculateCreditsForUsage({
+                        provider: resolvedModel.provider,
+                        model: resolvedModel.modelId,
+                        usage: completedUsage,
+                    });
+
+                    await ingestAiUsage({
+                        externalCustomerId: userId,
+                        eventId: `chat-message: ${event.responseMessage.id}`,
+                        credits: billableUsage.credits,
+                    });
+                } catch (error) {
+                    console.error("Failed to ingest Polar AI usage for chat message", {
+                        error,
+                        sessionId: id,
+                        messageId: event.responseMessage.id,
+                        userId,
+                    });
+                }
+            },
+            onError(error) {
+                return error instanceof Error ? error.message : String(error);
+            },
+        });
+
         try {
-            await streamAIResponse(stream, {
-                sessionId,
-                userId,
-                model: data.model,
-                cwd : session.cwd,
-                history,
-                mode: data.mode,
-                abortController,
+            await pipeUIMessageStreamToResponse({
+                response: res,
+                stream: uiStream,
+                consumeSseStream: consumeStream,
             });
         } catch (error) {
-            const errorEvent: ChatStreamEvent = {
-                type: "error",
-                message: error instanceof Error ? error.message : String(error),
-            };
-            stream.send({ event: "error", data: JSON.stringify(errorEvent) });
-        } finally {
-            stream.close();
+            // Stream shuru ho chuki ho to status badal nahi sakte
+            if (res.headersSent) {
+                res.end();
+                return;
+            }
+            next(error);
         }
     },
 );
-
-
 
 export default router;

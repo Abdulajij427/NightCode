@@ -5,7 +5,7 @@ import type {SupportedChatModelId} from '@nightcode/shared'
 import {DialogSearchList} from '../dialog-search-list';
 import {THEMES} from '../../theme';
 
-import  {Mode} from '@nightcode/database/enums'
+//import  {Mode} from '@nightcode/database/enums'
 
 
 

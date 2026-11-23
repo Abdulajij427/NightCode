@@ -2,26 +2,17 @@ import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { findSupportedChatModel } from "../../../shared/src";
-import {prisma , Role , Mode , MessageStatus} from '../../../database/src'
+import {prisma } from '../../../database/src'
 import { getAuthUser, requireAuth } from "../middleware/require-auth";
 import {requireCreditsBalance} from '../middleware/require-credits-balance';
-import {isSupportedChatModel} from '../lib/models';
+import type {AuthenticatedUser} from '../middleware/require-auth';
+
 
 
 
 export const createSessionSchema = z.object({
     title: z.string(),
-    cwd: z.string().optional(),
-    initialMessage: z
-        .object({
-            role: z.enum(Role),
-            content: z.string(),
-            mode: z.enum(Mode),
-            model: z
-                .string()
-                .refine(isSupportedChatModel, "Unsupported model"),
-        })
-        .optional(),
+    
 });
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
@@ -75,9 +66,7 @@ router.get("/:id", async (req, res: Response) => {
             id,
             userId: getAuthUser(res).id
         },
-        include: {
-            messages: {orderBy: {createdAt: "asc"}},
-        },
+        
     });
 
     if (!session) {
@@ -100,22 +89,18 @@ router.post(
 
         //return res.status(500).json({ message: "Mock error: session loading failed" });
 
-        const { initialMessage, ...data } = req.body;
+        const userId = getAuthUser(res).id;
+        const data = req.body;
+
+        
         
         const session = await prisma.session.create({
             data: {
                 ...data,
                 userId: getAuthUser(res).id,
-                ...(initialMessage && {
-                    messages: {
-                        create : {
-                            ...initialMessage,
-                            status: MessageStatus.COMPLETE
-                        }
-                    }
-                })
+                
             },
-            include: {messages: true}
+           
         });
         return res.status(201).json(session)
         
